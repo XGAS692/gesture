@@ -1,46 +1,87 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Celestial Hands</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background-color: #000;
-    }
-    #root {
-      width: 100vw;
-      height: 100vh;
-    }
-    /* Hide scrollbars */
-    ::-webkit-scrollbar {
-      display: none;
-    }
-  </style>
-  
-  <!-- MediaPipe Global Scripts (More reliable for WASM-backed libraries than pure ESM) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "three/": "https://esm.sh/three@^0.182.0/",
-    "three": "https://esm.sh/three@^0.182.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "gsap": "https://esm.sh/gsap@^3.14.2"
-  }
-}
-</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Hand Gesture Particle Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.3/hands.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-  <div id="root"></div>
+    <script>
+        // Setup scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Initialize particle system
+        const particleCount = 1000;
+        const particles = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3] = Math.random() * 10 - 5;
+            positions[i * 3 + 1] = Math.random() * 10 - 5;
+            positions[i * 3 + 2] = Math.random() * 10 - 5;
+        }
+        particles.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        const particleMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+        const particleSystem = new THREE.Points(particles, particleMaterial);
+        scene.add(particleSystem);
+
+        // Set up camera position
+        camera.position.z = 5;
+
+        // Initialize hands
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            },
+        });
+
+        hands.onResults(results => {
+            // Add animation logic with GSAP
+            if (results.multiHandLandmarks) {
+                results.multiHandLandmarks.forEach((hand) => {
+                    hand.forEach((landmark) => {
+                        // Here you can create visual effects based on hand gestures
+                        const x = (landmark.x - 0.5) * 10;
+                        const y = -(landmark.y - 0.5) * 10;
+
+                        gsap.to(particleSystem.rotation, { x: y, y: x, duration: 1 });
+                    });
+                });
+            }
+        });
+
+        // Setup video input
+        const videoElement = document.createElement('video');
+        videoElement.style.display = 'none';
+        document.body.appendChild(videoElement);
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        const sendFrame = async () => {
+            const inputImage = new Image();
+            inputImage.src = videoElement.srcObject;
+            await hands.send({ image: inputImage });
+            requestAnimationFrame(sendFrame);
+        };
+        sendFrame();
+
+        const animate = function () {
+            requestAnimationFrame(animate);
+            particleSystem.rotation.y += 0.01;
+            renderer.render(scene, camera);
+        };
+        animate();
+    </script>
 </body>
 </html>
