@@ -4,83 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Hand Gesture Particle Visualization</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.3/hands.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
     </style>
 </head>
 <body>
+    <canvas id="canvas"></canvas>
     <script>
-        // Setup scene, camera, and renderer
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-        // Initialize particle system
-        const particleCount = 1000;
-        const particles = new THREE.BufferGeometry();
-        const positions = new Float32Array(particleCount * 3);
-        for (let i = 0; i < particleCount; i++) {
-            positions[i * 3] = Math.random() * 10 - 5;
-            positions[i * 3 + 1] = Math.random() * 10 - 5;
-            positions[i * 3 + 2] = Math.random() * 10 - 5;
-        }
-        particles.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        const particleMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
-        const particleSystem = new THREE.Points(particles, particleMaterial);
-        scene.add(particleSystem);
+        let particles = [];
 
-        // Set up camera position
-        camera.position.z = 5;
-
-        // Initialize hands
-        const hands = new Hands({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-            },
-        });
-
-        hands.onResults(results => {
-            // Add animation logic with GSAP
-            if (results.multiHandLandmarks) {
-                results.multiHandLandmarks.forEach((hand) => {
-                    hand.forEach((landmark) => {
-                        // Here you can create visual effects based on hand gestures
-                        const x = (landmark.x - 0.5) * 10;
-                        const y = -(landmark.y - 0.5) * 10;
-
-                        gsap.to(particleSystem.rotation, { x: y, y: x, duration: 1 });
-                    });
-                });
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 5 + 1;
+                this.speedX = Math.random() * 3 - 1.5;
+                this.speedY = Math.random() * 3 - 1.5;
+                this.color = 'rgba(255, 255, 255, 0.8)';
             }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.size > 0.2) this.size -= 0.1;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function init() {
+            for (let i = 0; i < 100; i++) {
+                particles.push(new Particle(Math.random() * canvas.width, Math.random() * canvas.height));
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((particle, index) => {
+                particle.update();
+                particle.draw();
+                if (particle.size <= 0.3) {
+                    particles.splice(index, 1);
+                }
+            });
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
         });
 
-        // Setup video input
-        const videoElement = document.createElement('video');
-        videoElement.style.display = 'none';
-        document.body.appendChild(videoElement);
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        videoElement.srcObject = stream;
-        await videoElement.play();
-
-        const sendFrame = async () => {
-            const inputImage = new Image();
-            inputImage.src = videoElement.srcObject;
-            await hands.send({ image: inputImage });
-            requestAnimationFrame(sendFrame);
-        };
-        sendFrame();
-
-        const animate = function () {
-            requestAnimationFrame(animate);
-            particleSystem.rotation.y += 0.01;
-            renderer.render(scene, camera);
-        };
+        init();
         animate();
     </script>
 </body>
