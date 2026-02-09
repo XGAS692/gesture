@@ -1,0 +1,7 @@
+{
+  "name": "Celestial Hands - Interactive Particle Visualizer",
+  "description": "A high-performance 3D particle system controlled by hand gestures using Three.js and MediaPipe Hands. Transform 30,000 particles into shapes like hearts, spheres, and text with your hands.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
