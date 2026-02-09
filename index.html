@@ -3,69 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Hand Gesture Particle Visualization</title>
+    <title>Interactive Hand Gesture Visualization</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; }
         canvas { display: block; }
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-        let particles = [];
+        const particles = []; // Array to hold snow particles
 
-        class Particle {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.size = Math.random() * 5 + 1;
-                this.speedX = Math.random() * 3 - 1.5;
-                this.speedY = Math.random() * 3 - 1.5;
-                this.color = 'rgba(255, 255, 255, 0.8)';
-            }
-            update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
-                if (this.size > 0.2) this.size -= 0.1;
-            }
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-            }
+        // Function to create a snow particle
+        function createSnowParticle() {
+            const particleGeometry = new THREE.CircleGeometry(0.05, 6);
+            const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            particle.position.x = (Math.random() - 0.5) * 10;
+            particle.position.y = 5;
+            particle.position.z = (Math.random() - 0.5) * 10;
+            scene.add(particle);
+            particles.push(particle);
         }
 
-        function init() {
-            for (let i = 0; i < 100; i++) {
-                particles.push(new Particle(Math.random() * canvas.width, Math.random() * canvas.height));
+        // Create multiple snow particles
+        for (let i = 0; i < 100; i++) {
+            createSnowParticle();
+        }
+
+        // Setup MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+
+        hands.onResults(onResults);
+
+        const cameraElement = document.createElement('video');
+        cameraElement.width = 640;
+        cameraElement.height = 480;
+
+        async function initCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            cameraElement.srcObject = stream;
+            await new Promise((resolve) => { cameraElement.onloadedmetadata = () => { resolve(); }; });
+            cameraElement.play();
+        }
+
+        async function main() {
+            await initCamera();
+            const sendFrame = () => {
+                hands.send({ image: cameraElement });
+                requestAnimationFrame(sendFrame);
+            };
+            sendFrame();
+            animate();
+        }
+
+        function onResults(results) {
+            // Draw landmarks
+            if (results.multiHandLandmarks) {
+                results.multiHandLandmarks.forEach((landmarks) => {
+                    drawConnectors(renderer.getContext(), landmarks, Hands.HAND_CONNECTIONS);
+                });
             }
         }
 
         function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach((particle, index) => {
-                particle.update();
-                particle.draw();
-                if (particle.size <= 0.3) {
-                    particles.splice(index, 1);
+            requestAnimationFrame(animate);
+            particles.forEach(particle => {
+                particle.position.y -= 0.01; // Fall down
+                if (particle.position.y < -5) {
+                    particle.position.y = 5;
                 }
             });
-            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-
-        init();
-        animate();
+        camera.position.z = 5;
+        main();
     </script>
 </body>
 </html>
